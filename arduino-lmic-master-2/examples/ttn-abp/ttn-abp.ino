@@ -71,22 +71,25 @@ const lmic_pinmap lmic_pins = {
     .dio = {26, 33, 32},
 };
 
-// GPIO where the DS18B20 is connected to
-const int oneWireBus = 4;
-const int sensor_humedad = 36;
-// Setup a oneWire instance to communicate with any OneWire devices
-OneWire oneWire(oneWireBus);
+//Setup sensors
 
-const int watersensor = 2;
+//DS18B20
+const int temperature_pin = 4;
+OneWire oneWire(temperature_pin);
+DallasTemperature sensor_temperature(&oneWire);
 
-//prepare for DHT readings
-int temperature_c = 0;
-uint8_t humidity = 0;
+//FC-28
+const int humidity_pin = 36;
+const int rain_pin = 2;
+
+//DHT22
+int temperature_ext = 0;
+uint8_t humidity_ext = 0;
 const int pindht22  = 0;
-DHT dht(pindht22, DHT11);                
+DHT dht(pindht22, DHT22);                
 
-// Pass our oneWire reference to Dallas Temperature sensor 
-DallasTemperature sensors(&oneWire);
+//Payload sensors
+byte payload[9] = {0};
 
 void onEvent (ev_t ev) {
     Serial.print(os_getTime());
@@ -157,68 +160,68 @@ void do_send(osjob_t* j){
     // Check if there is not a current TX/RX job running
     if (LMIC.opmode & OP_TXRXPEND) {
         Serial.println(F("OP_TXRXPEND, not sending"));
-    } else {
-          sensors.requestTemperatures(); 
-//   float temperatureC = sensors.getTempCByIndex(0);
-//   temperatureC = 10.25;
-//   Serial.print(temperatureC);
-//   Serial.println("ºC");
-    byte payload[20] = {0};
+    } 
+    else { 
+        
+        //Measures sensors
+        //Temperature
+        sensor_temperature.requestTemperatures(); 
 
-    int32_t temperature = sensors.getTempCByIndex(0) * 100;
-    Serial.print(temperature);
-    Serial.println("ºC");
-    
-    uint16_t humedad_aux = analogRead(sensor_humedad);
-    Serial.print("Analog read: ");
+        int32_t temperature = sensor_temperature.getTempCByIndex(0) * 100;
+        Serial.print(temperature);
+        Serial.println("ºC");
+        
+        //Humidity
+        uint16_t humedad_aux = analogRead(humidity_pin);
+        Serial.print("humedad_aux raw: ");
         Serial.println(humedad_aux);
-
-    uint8_t humedad=map(humedad_aux, 0, 4095, 100, 0);
-    Serial.println(humedad);
-
-   humidity = dht.readHumidity();
-  // Read temperature as Celsius (the default)
-   temperature_c = dht.readTemperature() * 100;    
-   Serial.print("t= ");
-    Serial.print(temperature_c);
-    Serial.print(" ");
-    Serial.print("h= ");
-    Serial.print(humidity);
-    Serial.print("% ");
     
-    payload[0]=0;
-    payload[8]=0;
+        //Change range values
+        uint8_t humedad=map(humedad_aux, 0, 4095, 100, 0);
+        Serial.println(humedad);
 
-    if ( !digitalRead(watersensor )) {
-        Serial.println("Detectada lluvia");
-        payload[8] = 1;
-    }
-    else {
-        Serial.println("No llueve");
-    }
+        // External humidity and temperature
+        humidity_ext = dht.readHumidity();
+        temperature_ext = dht.readTemperature() * 100;    
+        Serial.print("temperature_ext= ");
+        Serial.print(temperature_ext);
+        Serial.print(" ");
+        Serial.print("humidity_ext= ");
+        Serial.print(humidity_ext);
+        Serial.print("% ");
+        
 
+        // Measures to payload
+        payload[0]=0;
+        payload[8]=0;
 
-    if ( temperature < 0 ) {
-      payload[0]=1;
-    }
-    payload[1] = highByte(abs(temperature));
-    payload[2] = lowByte(abs(temperature));
-    payload[3] = humedad;
-    if ( temperature_c < 0 ) {
-      payload[4]=1;
-    }
-    payload[5] = highByte(abs(temperature_c));
-    payload[6] = lowByte(abs(temperature_c));
-    payload[7] = humidity;
+        if ( !digitalRead( rain_pin ) ) {
+            Serial.println("Detectada lluvia");
+            payload[8] = 1;
+        }
+        else {
+            Serial.println("No llueve");
+        }
 
+        if ( temperature < 0 ) {
+            payload[0]=1;
+        }
+        payload[1] = highByte(abs(temperature));
+        payload[2] = lowByte(abs(temperature));
+        payload[3] = humedad;
+        if ( temperature_ext < 0 ) {
+            payload[4]=1;
+        }
+        payload[5] = highByte(abs(temperature_ext));
+        payload[6] = lowByte(abs(temperature_ext));
+        payload[7] = humidity_ext;
 
-for (uint8_t i = 0; i < sizeof(payload); i++)
-{
-    /* code */
-    Serial.print(payload[i]);
-    Serial.print("-");
-}
-    Serial.println();
+        // print payload
+        for (uint8_t i = 0; i < sizeof(payload); i++) {
+            Serial.print(payload[i]);
+            Serial.print("-");
+        }
+        Serial.println();
         // Prepare upstream data transmission at the next possible time.
         // LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
         LMIC_setTxData2(1, payload, sizeof(payload), 0);
@@ -300,10 +303,10 @@ void setup() {
     // Set data rate and transmit power for uplink (note: txpow seems to be ignored by the library)
     LMIC_setDrTxpow(DR_SF7,14);
 
-  // Start the DS18B20 sensor
-  sensors.begin();
+    // Start the DS18B20 sensor
+    sensor_temperature.begin();
     dht.begin();
-  pinMode(watersensor, INPUT);  //definir pin como entrada
+    pinMode(rain_pin, INPUT);  //definir pin como entrada
 
 
     // Start job
