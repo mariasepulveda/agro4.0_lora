@@ -38,11 +38,11 @@
 
 // LoRaWAN NwkSKey, network session key
 // This should be in big-endian (aka msb).
-static const PROGMEM u1_t NWKSKEY[16] = { 0x17, 0x79, 0xBD, 0xC4, 0x5C, 0x83, 0xCC, 0xE5, 0x60, 0x10, 0x6C, 0xC6, 0xF1, 0x0E, 0xA3, 0xC5 };
+static const PROGMEM u1_t NWKSKEY[16];
 
 // LoRaWAN AppSKey, application session key
 // This should also be in big-endian (aka msb).
-static const u1_t PROGMEM APPSKEY[16] = { 0xC0, 0x4F, 0x0A, 0xE0, 0x9A, 0x04, 0x6A, 0xFC, 0x2A, 0xC3, 0x18, 0xBD, 0xA0, 0xD7, 0x63, 0xAD };
+static const u1_t PROGMEM APPSKEY[16];
 
 // LoRaWAN end-device address (DevAddr)
 // See http://thethingsnetwork.org/wiki/AddressSpace
